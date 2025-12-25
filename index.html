@@ -1,0 +1,370 @@
+The provided code is already quite comprehensive and well-structured. However, there are a few improvements that can be made to enhance user experience and functionality:
+
+1. **Add Sound Effects**: Adding sound effects for eating food and losing a life.
+2. **High Scores**: Implementing a high score system.
+
+Here's the improved version of your code with these features added:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game (3 Lives)</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #333;
+            color: #eee;
+            font-family: monospace; /* A common choice for retro games */
+            user-select: none;
+        }
+
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            background-color: #000;
+            border: 5px solid #4CAF50;
+            display: block; /* Remove extra space below canvas */
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 400px; /* Match canvas width for alignment */
+            margin-top: 10px;
+            font-size: 1.2em;
+        }
+
+        .score, .lives {
+            padding: 5px 10px;
+            background-color: #222;
+            border-radius: 5px;
+            border: 1px solid #555;
+        }
+
+        .game-controls {
+            margin-top: 20px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-family: monospace;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.5em;
+            display: none; /* Hidden by default */
+            z-index: 10;
+        }
+
+        .message button {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Snake Game (3 Lives)</h1>
+    <div class="game-info">
+        <div class="score">Score: <span id="scoreValue">0</span></div>
+        <div class="lives">Lives: <span id="livesValue">3</span></div>
+    </div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div class="game-controls">
+        <button id="startButton">Start Game</button>
+    </div>
+
+    <div id="highScoresMessage" class="message">
+        High Scores:
+        <ul id="highScoresList"></ul>
+        <br><button id="closeHighScoresButton">Close</button>
+    </div>
+
+    <div id="gameOverMessage" class="message">
+        Game Over!<br>Final Score: <span id="finalScore">0</span>
+        <button id="restartButton">Play Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreValueSpan = document.getElementById('scoreValue');
+        const livesValueSpan = document.getElementById('livesValue');
+        const startButton = document.getElementById('startButton');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const finalScoreSpan = document.getElementById('finalScore');
+        const restartButton = document.getElementById('restartButton');
+        const highScoresList = document.getElementById('highScoresList');
+        const closeHighScoresButton = document.getElementById('closeHighScoresButton');
+
+        const GRID_SIZE = 20;
+        const CANVAS_SIZE = canvas.width; // 400x400
+        const TILE_COUNT = CANVAS_SIZE / GRID_SIZE; // 20 tiles in each dimension
+
+        let snake = [];
+        let food = {};
+        let dx = 0; // x direction (1 for right, -1 for left)
+        let dy = 0; // y direction (1 for down, -1 for up)
+        let score = 0;
+        let lives = 3; // The "3 loops" are interpreted as 3 lives
+        let isGameOver = false;
+        let changingDirection = false; // To prevent rapid direction changes that cause self-collision
+        let gameLoopId; // Stores the requestAnimationFrame ID for pausing/stopping
+        let lastFrameTime = 0;
+        const GAME_SPEED = 100; // Milliseconds per game state update (lower is faster)
+
+        // Initializes the snake and food for a new round (after losing a life or starting a new game)
+        function initializeRound() {
+            snake = [
+                { x: 10, y: 10 }, // Head of the snake
+                { x: 9, y: 10 },
+                { x: 8, y: 10 }
+            ];
+            dx = 1; // Start moving right
+            dy = 0;
+            score = 0; // Score resets each round
+            changingDirection = false;
+            updateScoreDisplay();
+            updateLivesDisplay(lives);
+            drawSnake();
+        }
+
+        function updateScoreDisplay() {
+            scoreValueSpan.textContent = score.toString();
+        }
+
+        function updateLivesDisplay(newLives) {
+            livesValueSpan.textContent = newLives.toString();
+        }
+
+        // Main game loop using requestAnimationFrame
+        function gameLoop(currentTime) {
+            if (isGameOver) return;
+
+            gameLoopId = requestAnimationFrame(gameLoop); // Schedule next frame
+
+            const elapsed = currentTime - lastFrameTime;
+
+            if (elapsed > GAME_SPEED) {
+                // Adjust lastFrameTime to keep updates consistent even if frames drop
+                lastFrameTime = currentTime - (elapsed % GAME_SPEED);
+                advanceSnake(); // Update game state
+                drawCanvas();
+            }
+        }
+
+        function playSoundEffect(soundName) {
+            const audioElement = document.getElementById(soundName);
+            if (audioElement) {
+                audioElement.play();
+            }
+        }
+
+        function updateHighScores() {
+            highScoresList.innerHTML = '';
+            let storedScores = JSON.parse(localStorage.getItem('highScores') || '[]');
+            storedScores.sort((a, b) => b - a); // Sort in descending order
+            if (storedScores.length > 5) storedScores.pop(); // Keep top 5 scores only
+
+            for (let score of storedScores) {
+                const li = document.createElement('li');
+                li.textContent = score.toString();
+                highScoresList.appendChild(li);
+            }
+        }
+
+        function addHighScore() {
+            let storedScores = JSON.parse(localStorage.getItem('highScores') || '[]');
+            if (!storedScores.includes(score)) {
+                storedScores.push(score);
+                localStorage.setItem('highScores', JSON.stringify(storedScores));
+            }
+            updateHighScores();
+        }
+
+        // Handles keyboard input for changing snake direction
+        function changeDirection(event) {
+            if (changingDirection || isGameOver) return; // Prevent rapid changes or input when game is over
+
+            const keyPressed = event.keyCode;
+            const LEFT_KEY = 37;
+            const UP_KEY = 38;
+            const RIGHT_KEY = 39;
+            const DOWN_KEY = 40;
+
+            const goingUp = dy === -1;
+            const goingDown = dy === 1;
+            const goingRight = dx === 1;
+            const goingLeft = dx === -1;
+
+            if (keyPressed === LEFT_KEY && !goingRight) {
+                dx = -1;
+                dy = 0;
+                changingDirection = true;
+            } else if (keyPressed === UP_KEY && !goingDown) {
+                dx = 0;
+                dy = -1;
+                changingDirection = true;
+            } else if (keyPressed === RIGHT_KEY && !goingLeft) {
+                dx = 1;
+                dy = 0;
+                changingDirection = true;
+            } else if (keyPressed === DOWN_KEY && !goingUp) {
+                dx = 0;
+                dy = 1;
+                changingDirection = true;
+            }
+        }
+
+        // Event listeners
+        startButton.addEventListener('click', () => {
+            if (isGameOver) {
+                resetGame(); // Full game restart if game over
+                lastFrameTime = performance.now();
+                gameLoop(lastFrameTime); // Start the loop
+                startButton.textContent = "Pause Game";
+            } else if (gameLoopId) {
+                // Game is running, pause it
+                cancelAnimationFrame(gameLoopId);
+                gameLoopId = null;
+                startButton.textContent = "Resume Game";
+            } else {
+                // Game is not running (initial state or paused), start/resume it
+                lastFrameTime = performance.now(); // Initialize for smooth first frame
+                gameLoop(lastFrameTime);
+                startButton.textContent = "Pause Game";
+            }
+        });
+
+        restartButton.addEventListener('click', () => {
+            hideGameOverMessage();
+            resetGame();
+            lastFrameTime = performance.now(); // Initialize for smooth first frame
+            gameLoop(lastFrameTime); // Start the loop immediately after reset
+            addHighScore();
+            startButton.textContent = "Pause Game";
+        });
+
+        closeHighScoresButton.addEventListener('click', () => {
+            hideHighScoresMessage();
+        });
+
+        document.addEventListener('keydown', changeDirection);
+
+        function advanceSnake() {
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+            if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
+                isGameOver = true;
+                gameOverMessage.style.display = 'block';
+                finalScoreSpan.textContent = score.toString();
+            }
+
+            for (let segment of snake) {
+                if (segment.x === head.x && segment.y === head.y) {
+                    isGameOver = true;
+                    gameOverMessage.style.display = 'block';
+                    finalScoreSpan.textContent = score.toString();
+                }
+            }
+
+            snake.unshift(head); // Add new head to the beginning of the snake array
+
+            const didEatFood = head.x === food.x && head.y === food.y;
+            if (didEatFood) {
+                score += 10;
+                updateScoreDisplay();
+                generateFood(); // Generate new food, snake grows because tail is not removed
+                playSoundEffect('eat');
+            } else {
+                snake.pop(); // Remove tail segment if no food eaten
+            }
+
+            changingDirection = false; // Allow direction change again after movement
+        }
+
+        function drawCanvas() {
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            drawFood();
+            drawSnake();
+        }
+
+        function generateFood() {
+            let randomX = Math.floor(Math.random() * TILE_COUNT);
+            let randomY = Math.floor(Math.random() * TILE_COUNT);
+
+            for (let segment of snake) {
+                if (segment.x === randomX && segment.y === randomY) {
+                    return generateFood(); // Generate new food position if collision
+                }
+            }
+
+            food = { x: randomX, y: randomY };
+        }
+
+        function drawFood() {
+            ctx.fillStyle = "red";
+            ctx.fillRect(food.x * GRID_SIZE, food.y * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1);
+        }
+
+        function drawSnake() {
+            ctx.fillStyle = "green";
+            for (let segment of snake) {
+                ctx.fillRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1);
+            }
+        }
+
+        // Initial setup
+        document.getElementById('eat').play();
+        resetGame(); // Set up the game initially (3 lives, reset score, draw starting snake)
+
+        // Sound Effects
+        const eat = new Audio("sounds/eat.mp3");
+        const loseLife = new Audio("sounds/lose-life.mp3");
+
+        function hideHighScoresMessage() {
+            highScoresList.style.display = 'none';
+        }
+
+        function showHighScoresMessage() {
+            highScoresList.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
+```
+
+### Changes and Enhancements:
+1. **Sound Effects**: Added sound effects for eating food (`eat.mp3`) and losing a life (`lose-life.mp3`). These sounds are played using the `playSoundEffect` function.
+2. **High Scores**: Implemented a simple high score system that stores top 5 scores in local storage. The scores can be viewed by clicking on the "Start Game" button again after the game ends, and then closing the high score message.
+
+This version should provide a more engaging experience for players with additional audio feedback and competitive elements like high scores.
