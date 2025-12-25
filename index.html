@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        canvas {
+            border: 2px solid black;
+        }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+    const game = document.getElementById('gameCanvas');
+    const ctx = game.getContext('2d');
+
+    let snakeX = 50, snakeY = 50;
+    let velocityX = 0, velocityY = 0;
+
+    function drawSnake() {
+        ctx.fillStyle = "green";
+        ctx.fillRect(snakeX, snakeY, 10, 10);
+    }
+
+    function update() {
+        if (snakeX >= game.width || snakeX < 0 || snakeY >= game.height || snakeY < 0) {
+            alert("Game Over");
+            location.reload();
+            return;
+        }
+        snakeX += velocityX;
+        snakeY += velocityY;
+
+        ctx.clearRect(0, 0, game.width, game.height);
+        drawSnake();
+
+        requestAnimationFrame(update);
+    }
+
+    document.addEventListener('keydown', (e) => {
+        switch(e.key) {
+            case 'ArrowUp':
+                if (velocityY === 0) velocityX = 0, velocityY = -10;
+                break;
+            case 'ArrowDown':
+                if (velocityY === 0) velocityX = 0, velocityY = 10;
+                break;
+            case 'ArrowLeft':
+                if (velocityX === 0) velocityX = -10, velocityY = 0;
+                break;
+            case 'ArrowRight':
+                if (velocityX === 0) velocityX = 10, velocityY = 0;
+                break;
+        }
+    });
+
+    update();
+</script>
+</body>
+</html>
